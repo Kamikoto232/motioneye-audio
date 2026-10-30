@@ -29,6 +29,7 @@ from tornado import gen
 from tornado.web import HTTPError
 
 from motioneye import (
+    audio,
     audiocapture,
     config,
     mediafiles,
@@ -248,6 +249,22 @@ class PictureHandler(BaseHandler):
         else:  # assuming simple mjpeg camera
             raise HTTPError(400, 'unknown operation')
 
+    def frame_audio(self, audio_enabled, streaming_audio):
+        # the embedded page shows the picture with the sound (by default, as set
+        # for the camera), the picture only (audio=0) or the sound only (audio=only)
+        mode = (self.get_argument('audio', None) or '').lower()
+
+        if not audio_enabled or mode in ('0', 'off', 'false', 'no', 'none'):
+            return 'none'
+
+        if mode == 'only':
+            return 'only'
+
+        if mode == '' and not streaming_audio:
+            return 'none'
+
+        return 'with'
+
     def set_audio_cookies(self, camera_id_str, state):
         # the loudness (dB) of the camera sound and whether it is above the threshold
         level = state.level if state else None
@@ -319,6 +336,10 @@ class PictureHandler(BaseHandler):
                 title=self.get_argument('title', camera_config.get('camera_name', '')),
                 current_user=self.current_user,
                 static_path='../../../static/',
+                frame_audio=self.frame_audio(
+                    audio.get_settings(camera_config).enabled,
+                    camera_config.get('@streaming_audio', True),
+                ),
             )
 
         elif utils.is_remote_camera(camera_config):
@@ -357,6 +378,10 @@ class PictureHandler(BaseHandler):
                 camera_config=remote_config,
                 title=self.get_argument('title', remote_config['camera_name']),
                 current_user=self.current_user,
+                frame_audio=self.frame_audio(
+                    bool(resp.remote_ui_config.get('audio_enabled')),
+                    resp.remote_ui_config.get('streaming_audio') != 'without_audio',
+                ),
             )
 
         return None

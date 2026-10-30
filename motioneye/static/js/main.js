@@ -4738,6 +4738,8 @@ function updateCameraAudio(cameraId, cameraFrameDiv, clear) {
     var level = parseFloat(getCookie('audio_level_' + cameraId));
     var enabled = config['audio_enabled'] && config['proto'] != 'mjpeg' && !clear;
 
+    cameraFrameDiv.find('span.camera-sound').toggle(!!config['audio_enabled'] && config['proto'] != 'mjpeg');
+
     if (!enabled || isNaN(level)) {
         dbSpan.text(enabled ? '-- dB' : '');
         meterDiv.removeClass('visible');
@@ -4774,6 +4776,49 @@ function updateCameraAudio(cameraId, cameraFrameDiv, clear) {
     }
 }
 
+function setCameraSound(cameraFrameDiv, on) {
+    /* starts or stops playing the live sound of a camera in the browser */
+    var frameElem = cameraFrameDiv[0];
+    var cameraId = frameElem.id.substring(6);
+    var soundSpan = cameraFrameDiv.find('span.camera-sound');
+
+    if (frameElem.soundPlayer) {
+        frameElem.soundPlayer.pause();
+        frameElem.soundPlayer.removeAttribute('src');
+        frameElem.soundPlayer.load(); /* closes the stream */
+        frameElem.soundPlayer = null;
+    }
+
+    if (!on) {
+        soundSpan.removeClass('on').html('&#128263;').attr('title', i18n.gettext("listen to this camera"));
+        return;
+    }
+
+    /* every browser plays MP3 */
+    var player = new Audio();
+    player.src = basePath + 'audio/' + cameraId + '/stream/?format=mp3&_=' + new Date().getTime();
+    player.addEventListener('error', function () {
+        if (frameElem.soundPlayer === player) {
+            setCameraSound(cameraFrameDiv, false);
+            showPopupMessage(i18n.gettext("could not play the sound of this camera"), 'error');
+        }
+    });
+    frameElem.soundPlayer = player;
+    soundSpan.addClass('on').html('&#128266;').attr('title', i18n.gettext("stop listening to this camera"));
+
+    var promise = player.play();
+    if (promise && promise.catch) {
+        promise.catch(function () {});
+    }
+}
+
+$(document).on('click', 'span.camera-sound', function () {
+    var cameraFrameDiv = $(this).parents('div.camera-frame');
+    setCameraSound(cameraFrameDiv, !cameraFrameDiv[0].soundPlayer);
+
+    return false;
+});
+
 function addCameraFrameUi(cameraConfig) {
     var cameraId = cameraConfig.id;
 
@@ -4794,6 +4839,7 @@ function addCameraFrameUi(cameraConfig) {
                                 '<div class="camera-fps">' +
                                     '<span class="camera-fps" title="streaming/capture frame rate"></span>' +
                                     '<span class="camera-db" title="' + i18n.gettext("sound level") + '"></span>' +
+                                    '<span class="camera-sound" title="' + i18n.gettext("listen to this camera") + '">&#128263;</span>' +
                                 '</div>' +
                             '</div>' +
                             '<div class="camera-top-buttons">' +

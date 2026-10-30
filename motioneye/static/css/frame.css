@@ -42,3 +42,37 @@ div.camera-placeholder {
 div.camera-progress {
     cursor: default;
 }
+
+div.camera-sound-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 2;
+    padding: 0.3em 0.5em;
+    border-top-right-radius: 0.4em;
+    background-color: rgba(30, 30, 30, 0.7);
+    font-size: 0.9em;
+    line-height: 1.4em;
+    font-family: monospace;
+}
+
+div.camera-sound-bar span.camera-sound {
+    display: inline;
+    cursor: pointer;
+    font-family: sans-serif;
+}
+
+div.camera-frame.audio-only div.camera-container {
+    display: none;
+}
+
+div.camera-frame.audio-only div.camera-sound-bar {
+    position: static;
+    padding: 1em;
+    font-size: 1.4em;
+    background: none;
+}
+
+div.camera-frame.audio-detected div.camera-sound-bar {
+    background-color: rgba(107, 90, 20, 0.9);
+}

@@ -325,6 +325,7 @@ class TestRemoteVerifyCertificate(unittest.IsolatedAsyncioTestCase):
         'del_media_content': ('a.jpg', 'picture'),
         'del_media_group': ('group', 'picture'),
         'exec_action': ('snapshot',),
+        'stream_audio': ('stream', {}, lambda header: None, lambda chunk: None),
     }
 
     @staticmethod

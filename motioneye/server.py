@@ -32,6 +32,7 @@ from tornado.web import Application
 from motioneye import config, migration, settings, template
 from motioneye.controls import smbctl, v4l2ctl
 from motioneye.handlers.action import ActionHandler
+from motioneye.handlers.audio import AudioHandler
 from motioneye.handlers.base import ManifestHandler, NotFoundHandler
 from motioneye.handlers.config import ConfigHandler
 from motioneye.handlers.log import LogHandler
@@ -201,6 +202,7 @@ handler_mapping: Sequence[tuple] = [
         r'^/picture/(?P<camera_id>\d+)/(?P<op>zipped|timelapse|delete_all)/(?P<group>.*?)/?$',
         PictureHandler,
     ),
+    (r'^/audio/(?P<camera_id>\d+)/(?P<op>stream|video|level)/?$', AudioHandler),
     (r'^/movie/(?P<camera_id>\d+)/(?P<op>list)/?$', MovieHandler),
     (
         r'^/movie/(?P<camera_id>\d+)/(?P<op>preview|delete)/(?P<filename>.+?)/?$',

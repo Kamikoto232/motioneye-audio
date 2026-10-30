@@ -436,6 +436,40 @@ async def get_current_picture(
     )
 
 
+async def stream_audio(
+    local_config, op, query, header_callback, streaming_callback
+) -> str | None:
+    """Gets the live sound (op "stream") or the picture with sound (op "video") of
+    a remote camera, passing the data on as it arrives. Raising in
+    streaming_callback ends the request. Returns an error message."""
+
+    scheme, host, port, remote_secret, path, camera_id, verify = _remote_params(
+        local_config
+    )
+
+    logging.debug(
+        f'getting the {op} of remote camera {camera_id} on {pretty_camera_url(local_config)}'
+    )
+
+    request = _make_request(
+        scheme,
+        host,
+        port,
+        remote_secret,
+        path + f'/audio/{camera_id}/{op}/',
+        query=query,
+        timeout=settings.REMOTE_REQUEST_TIMEOUT,
+        validate_cert=verify,
+    )
+    request.header_callback = header_callback
+    request.streaming_callback = streaming_callback
+    request.request_timeout = 0  # a stream does not end by itself
+
+    response = await _send_request(request)
+
+    return utils.pretty_http_error(response) if response.error else None
+
+
 async def list_media(
     local_config, media_type, prefix: str | None = None
 ) -> utils.ListMediaResponse:

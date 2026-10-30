@@ -1097,6 +1097,20 @@ span.camera-db {
     white-space: nowrap;
 }
 
+span.camera-sound {
+    display: none;
+    margin-left: 0.6em;
+    padding: 0 0.3em 0.2em 0.3em;
+    font-family: sans-serif;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+span.camera-sound:HOVER,
+span.camera-sound.on {
+    opacity: 1;
+}
+
 div.camera-monitoring {
     display: flex;
     align-items: center;

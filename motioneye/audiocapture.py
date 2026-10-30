@@ -61,6 +61,8 @@ __all__ = (
 BLOCK_SECONDS = 0.1
 # the reported loudness is the average power of this many blocks
 _SMOOTHING_BLOCKS = 3
+# a listener that is this far behind starts losing sound (about 10 seconds)
+_LISTENER_BLOCKS = 100
 # the sound kept from before an event starts, besides the pre-capture of motion
 _PRE_ROLL_SECONDS = 8
 _MAX_PRE_ROLL_SECONDS = 120
@@ -187,6 +189,7 @@ class AudioCapture:
         )
         self._trigger_lock = asyncio.Lock()
 
+        self._listeners: set[asyncio.Queue] = set()
         self._ring: deque[bytes] = deque()
         self._recording: _Recording | None = None
         self._event_active = False
@@ -221,6 +224,7 @@ class AudioCapture:
         self._task = None
         self._end_event()
         self._close_recording()
+        self._publish(None)
 
     @property
     def level(self) -> float | None:
@@ -235,6 +239,25 @@ class AudioCapture:
             return None
 
         return max(db for _t, db in self._peaks)
+
+    def subscribe(self) -> asyncio.Queue:
+        """Returns a queue that gets the PCM blocks, and None when the capture stops."""
+
+        queue: asyncio.Queue = asyncio.Queue(maxsize=_LISTENER_BLOCKS)
+        self._listeners.add(queue)
+
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue) -> None:
+        self._listeners.discard(queue)
+
+    def _publish(self, pcm: bytes | None) -> None:
+        for queue in self._listeners:
+            if queue.full():  # a slow listener loses the oldest sound
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    queue.get_nowait()
+
+            queue.put_nowait(pcm)
 
     def apply_config(self, camera_config: dict) -> None:
         """Takes over the settings that do not need a restart of the capture."""
@@ -466,6 +489,7 @@ class AudioCapture:
         self._powers.append(power)
 
         self._ring.append(pcm)
+        self._publish(pcm)
         recording = self._recording
         if recording is not None:
             if recording.size >= _MAX_RECORDING_SECONDS * self.sample_rate * 2:

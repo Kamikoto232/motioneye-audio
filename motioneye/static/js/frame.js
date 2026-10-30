@@ -72,6 +72,56 @@ function setupCameraFrame() {
     });
 
     cameraImg.addClass('loading');
+
+    setupFrameAudio(cameraFrameDiv, cameraId);
+}
+
+function setupFrameAudio(cameraFrameDiv, cameraId) {
+    var mode = cameraFrameDiv.attr('audio');
+    if (!mode || mode == 'none') {
+        return;
+    }
+
+    var soundSpan = cameraFrameDiv.find('span.camera-sound');
+    var dbSpan = cameraFrameDiv.find('span.camera-db');
+    var player = null;
+
+    function setSound(on) {
+        if (player) {
+            player.pause();
+            player.removeAttribute('src');
+            player.load(); /* closes the stream */
+            player = null;
+        }
+
+        soundSpan.html(on ? '&#128266;' : '&#128263;');
+        if (on) {
+            player = new Audio();
+            player.src = basePath + 'audio/' + cameraId + '/stream/?format=' + cameraFrameDiv.attr('audio_format') + '&_=' + new Date().getTime();
+            player.addEventListener('error', function () {
+                setSound(false);
+            });
+            var promise = player.play();
+            if (promise && promise.catch) {
+                promise.catch(function () {});
+            }
+        }
+    }
+
+    soundSpan.on('click', function () {
+        setSound(!player);
+    });
+
+    if (mode == 'only') {
+        cameraFrameDiv.addClass('audio-only');
+    }
+
+    /* the sound level is in the same cookies as with the main interface */
+    setInterval(function () {
+        var level = parseFloat(getCookie('audio_level_' + cameraId));
+        dbSpan.text(isNaN(level) ? '-- dB' : level.toFixed(0) + ' dB');
+        cameraFrameDiv.toggleClass('audio-detected', getCookie('audio_exceeded_' + cameraId) == 'true');
+    }, 500);
 }
 
 function refreshCameraFrame() {
