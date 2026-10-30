@@ -24,9 +24,11 @@ The runtime part (capturing, metering, recording, streaming) is implemented in
 
 from __future__ import annotations
 
+import base64
+import http.client
 import re
 from dataclasses import dataclass
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 __all__ = (
     'AUDIO_FORMATS',
@@ -37,7 +39,10 @@ __all__ = (
     'get_settings',
     'input_arguments',
     'merge_stream_authentication',
+    'probe_content_type',
+    'raw_pcm_arguments',
     'settings_to_ui',
+    'source_of',
     'stream_credentials_to_ui',
     'ui_to_settings',
 )
@@ -257,26 +262,97 @@ def stream_credentials_to_ui(data: dict) -> dict:
     return ui
 
 
+def source_of(camera_config: dict) -> str | None:
+    """The audio source of a camera (with the credentials of a network camera
+    in the URL), or None if the camera has no audio source."""
+
+    source = get_settings(camera_config).source
+    if source:
+        return source
+
+    url = camera_config.get('netcam_url') or ''
+    scheme = urlsplit(url).scheme.lower()
+    if scheme not in ('rtsp', 'rtsps', 'rtmp', 'rtmps', 'http', 'https'):
+        return None
+
+    userpass = camera_config.get('netcam_userpass')
+    if userpass and '@' not in urlsplit(url).netloc:
+        parts = urlsplit(url)
+        url = urlunsplit(parts._replace(netloc=f'{userpass}@{parts.netloc}'))
+
+    return url
+
+
 def input_arguments(camera_config: dict) -> list[str] | None:
     """The ffmpeg arguments (before the output) that open the audio source of
     a camera, or None if the camera has no audio source."""
 
-    source = get_settings(camera_config).source
+    source = source_of(camera_config)
 
-    if not source:
-        url = camera_config.get('netcam_url') or ''
-        scheme = urlsplit(url).scheme.lower()
-        if scheme not in ('rtsp', 'rtsps', 'rtmp', 'rtmps', 'http', 'https'):
-            return None
+    return _source_to_arguments(source) if source else None
 
-        userpass = camera_config.get('netcam_userpass')
-        if userpass and '@' not in urlsplit(url).netloc:
-            parts = urlsplit(url)
-            url = urlunsplit(parts._replace(netloc=f'{userpass}@{parts.netloc}'))
 
-        source = url
+def probe_content_type(url: str, timeout: float = 5.0) -> str | None:
+    """The Content-Type that an HTTP audio source answers with, if it answers.
 
-    return _source_to_arguments(source)
+    A live stream never ends, so only the headers are read.
+    """
+
+    parts = urlsplit(url)
+    if parts.scheme.lower() not in ('http', 'https') or not parts.hostname:
+        return None
+
+    connection_class = (
+        http.client.HTTPSConnection
+        if parts.scheme.lower() == 'https'
+        else http.client.HTTPConnection
+    )
+    headers = {}
+    if parts.username:
+        credentials = f'{unquote(parts.username)}:{unquote(parts.password or "")}'
+        headers['Authorization'] = (
+            'Basic ' + base64.b64encode(credentials.encode()).decode()
+        )
+
+    connection = connection_class(parts.hostname, parts.port, timeout=timeout)
+    try:
+        path = (parts.path or '/') + (f'?{parts.query}' if parts.query else '')
+        connection.request('GET', path, headers=headers)
+        return connection.getresponse().getheader('Content-Type')
+
+    except (OSError, http.client.HTTPException):
+        return None
+
+    finally:
+        connection.close()
+
+
+def raw_pcm_arguments(content_type: str | None, url: str) -> list[str] | None:
+    """The ffmpeg arguments for a source that streams bare PCM, e.g. the audio
+    of the IPCamera Android app (``audio/l16;rate=11025;channels=1``).
+
+    ffmpeg cannot detect such a stream, so its format has to be given. The
+    samples are read as little endian, which is what the apps that serve them
+    send, although L16 is big endian by definition.
+    """
+
+    mime, _sep, params = (content_type or '').partition(';')
+    if mime.strip().lower() != 'audio/l16':
+        return None
+
+    rate = re.search(r'rate\s*=\s*(\d+)', params, re.IGNORECASE)
+    channels = re.search(r'channels\s*=\s*(\d+)', params, re.IGNORECASE)
+
+    return [
+        '-f',
+        's16le',
+        '-ar',
+        rate.group(1) if rate else '44100',
+        '-ac',
+        channels.group(1) if channels else '1',
+        '-i',
+        url,
+    ]
 
 
 def _source_to_arguments(source: str) -> list[str]:

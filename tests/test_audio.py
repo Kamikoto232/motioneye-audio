@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import http.server
+import threading
+import time
 import unittest
 
 from motioneye import audio, config
@@ -148,6 +152,55 @@ class SourceTest(unittest.TestCase):
         self.assertEqual(
             ['-rtsp_transport', 'tcp', '-i', 'rtsp://mic/audio'], arguments
         )
+
+
+class RawPcmTest(unittest.TestCase):
+    def test_the_format_is_read_from_the_content_type(self):
+        self.assertEqual(
+            ['-f', 's16le', '-ar', '11025', '-ac', '1', '-i', 'http://h/audio'],
+            audio.raw_pcm_arguments('audio/l16;rate=11025;channels=1', 'http://h/audio'),
+        )
+        self.assertEqual(
+            ['-f', 's16le', '-ar', '8000', '-ac', '2', '-i', 'u'],
+            audio.raw_pcm_arguments('Audio/L16; Rate=8000; Channels=2', 'u'),
+        )
+
+    def test_other_types_are_left_to_ffmpeg(self):
+        self.assertIsNone(audio.raw_pcm_arguments('audio/mpeg', 'u'))
+        self.assertIsNone(audio.raw_pcm_arguments('multipart/x-mixed-replace', 'u'))
+        self.assertIsNone(audio.raw_pcm_arguments(None, 'u'))
+
+    def test_probe_reads_the_headers_of_a_stream_that_never_ends(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Type', 'audio/l16;rate=11025;channels=1')
+                self.end_headers()
+                with contextlib.suppress(OSError):
+                    for _ in range(1000):
+                        self.wfile.write(b'\0' * 2048)
+                        time.sleep(0.01)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+
+        content_type = audio.probe_content_type(
+            f'http://127.0.0.1:{server.server_address[1]}/audio'
+        )
+
+        self.assertEqual('audio/l16;rate=11025;channels=1', content_type)
+
+    def test_probe_of_something_else_than_http(self):
+        self.assertIsNone(audio.probe_content_type('rtsp://cam/stream'))
+        self.assertIsNone(audio.probe_content_type('hw:1,0'))
+
+    def test_probe_of_a_closed_port(self):
+        self.assertIsNone(audio.probe_content_type('http://127.0.0.1:1/audio', 1))
 
 
 class ConfigTest(unittest.TestCase):

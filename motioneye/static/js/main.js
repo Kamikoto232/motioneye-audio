@@ -1491,18 +1491,6 @@ function updateConfigUI() {
         $('#textOverlayEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
     }
 
-    /* audio switches */
-    if (!$('#audioEnabledSwitch').get(0).checked) {
-        $('#audioEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
-
-        /* the audio stream needs the audio capture */
-        $('#audioStreamingEnabledSwitch').parent().each(markHideLogic);
-    }
-
-    if (!$('#audioStreamingEnabledSwitch').get(0).checked) {
-        $('#audioStreamingEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
-    }
-
     /* still images switch */
     if (!$('#stillImagesEnabledSwitch').get(0).checked) {
         $('#stillImagesEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);

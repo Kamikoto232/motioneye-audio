@@ -182,6 +182,7 @@ class AudioCapture:
     def __init__(self, camera_id: int, camera_config: dict) -> None:
         self.camera_id = camera_id
         self.settings = audio.get_settings(camera_config)
+        self.source = audio.source_of(camera_config)
         self.input_arguments = audio.input_arguments(camera_config) or []
         self.signature = signature(camera_config)
         self.trigger = ThresholdTrigger(
@@ -368,10 +369,27 @@ class AudioCapture:
             with contextlib.suppress(ProcessLookupError):
                 process.kill()
 
-    def _command(self) -> list[str]:
+    async def _input_arguments(self) -> list[str]:
+        """A source that streams bare PCM cannot be detected by ffmpeg: its
+        format is read from the headers of the answer."""
+
+        if self.source:
+            content_type = await asyncio.to_thread(
+                audio.probe_content_type, self.source
+            )
+            arguments = audio.raw_pcm_arguments(content_type, self.source)
+            if arguments:
+                return arguments
+
+        return self.input_arguments
+
+    def _command(self, input_arguments: list[str] | None = None) -> list[str]:
         binary = mediafiles.find_ffmpeg()[0]
         if not binary:
             raise RuntimeError('ffmpeg is not available')
+
+        if input_arguments is None:
+            input_arguments = self.input_arguments
 
         return [
             binary,
@@ -379,7 +397,7 @@ class AudioCapture:
             '-nostdin',
             '-loglevel',
             'error',
-            *self.input_arguments,
+            *input_arguments,
             '-vn',
             '-sn',
             '-dn',
@@ -418,7 +436,7 @@ class AudioCapture:
             await asyncio.sleep(delay)
 
     async def _capture(self) -> None:
-        command = self._command()
+        command = self._command(await self._input_arguments())
         logging.debug(
             f'starting audio capture of camera {self.camera_id}: {_redact(command)}'
         )

@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import array
 import asyncio
+import contextlib
+import http.server
 import math
 import shutil
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -182,6 +186,56 @@ class CaptureTest(unittest.IsolatedAsyncioTestCase):
             configs[1] = {**config_a, '@audio_enabled': False}
             await audiocapture._update()
             self.assertIsNone(audiocapture.get_capture(1))
+
+
+@unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is not installed')
+class RawPcmSourceTest(unittest.IsolatedAsyncioTestCase):
+    """A source that streams bare PCM, like the IPCamera Android app does."""
+
+    def setUp(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Type', 'audio/l16;rate=11025;channels=1')
+                self.send_header('Connection', 'close')
+                self.end_headers()
+                block = _pcm(3277, 512)  # about -20 dB
+                with contextlib.suppress(OSError):
+                    for _ in range(600):
+                        self.wfile.write(block)
+                        self.wfile.flush()
+                        time.sleep(0.04)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    async def test_the_level_is_measured(self):
+        capture = audiocapture.AudioCapture(
+            1,
+            {
+                '@id': 1,
+                '@audio_enabled': True,
+                '@audio_quality': 'low',
+                '@audio_source': f'http://127.0.0.1:{self.server.server_address[1]}/audio',
+            },
+        )
+        capture.start()
+        try:
+            for _ in range(100):
+                await asyncio.sleep(0.1)
+                if capture.level is not None:
+                    break
+
+            self.assertIsNotNone(capture.level)
+            self.assertAlmostEqual(-20, capture.level, delta=1.5)
+
+        finally:
+            await capture.stop()
 
 
 if __name__ == '__main__':
