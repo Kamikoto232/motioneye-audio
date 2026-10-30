@@ -37,11 +37,12 @@ from dataclasses import dataclass
 
 from tornado.ioloop import IOLoop
 
-from motioneye import audio, config, mediafiles, utils
+from motioneye import audio, config, mediafiles, motionctl, utils
 
 __all__ = (
     'AudioCapture',
     'AudioState',
+    'ThresholdTrigger',
     'block_db',
     'get_capture',
     'get_state',
@@ -56,6 +57,8 @@ BLOCK_SECONDS = 0.1
 _SMOOTHING_BLOCKS = 3
 # no sound received for this long: the level is unknown
 _STALE_SECONDS = 3.0
+# the volume counts as above the threshold this long after the last loud block
+_EXCEEDED_HOLD_SECONDS = 2.0
 # no sound received for this long while ffmpeg is running: restart it
 _WATCHDOG_SECONDS = 20.0
 _RETRY_DELAYS = (2, 5, 10, 30, 60)
@@ -98,12 +101,55 @@ def block_db(pcm: bytes) -> float:
     return power_to_db(block_power(pcm))
 
 
+class ThresholdTrigger:
+    """Tells when the volume goes above a threshold and when it stays below it
+    for long enough to end the event (the same way as the event gap of motion)."""
+
+    def __init__(self, threshold: float, hold: float) -> None:
+        self.threshold = threshold
+        self.hold = hold
+        self.active = False
+        self._last_loud: float | None = None
+
+    def update(self, level: float, now: float) -> str | None:
+        """Returns 'start' or 'end' when the event starts or ends."""
+
+        if level > self.threshold:
+            self._last_loud = now
+            if not self.active:
+                self.active = True
+                return 'start'
+
+        elif self.active and now - (self._last_loud or now) >= self.hold:
+            self.active = False
+            return 'end'
+
+        return None
+
+    def exceeded(self, now: float) -> bool:
+        return (
+            self._last_loud is not None
+            and now - self._last_loud < _EXCEEDED_HOLD_SECONDS
+        )
+
+    def reset(self) -> str | None:
+        was_active = self.active
+        self.active = False
+        self._last_loud = None
+
+        return 'end' if was_active else None
+
+
 class AudioCapture:
     def __init__(self, camera_id: int, camera_config: dict) -> None:
         self.camera_id = camera_id
         self.settings = audio.get_settings(camera_config)
         self.input_arguments = audio.input_arguments(camera_config) or []
         self.signature = signature(camera_config)
+        self.trigger = ThresholdTrigger(
+            self.settings.threshold, _event_gap(camera_config)
+        )
+        self._trigger_lock = asyncio.Lock()
 
         self.sample_rate = self.settings.sample_rate
         self.block_size = int(self.sample_rate * BLOCK_SECONDS) * 2
@@ -129,6 +175,7 @@ class AudioCapture:
                 await self._task
 
         self._task = None
+        self._end_event()
 
     @property
     def level(self) -> float | None:
@@ -144,8 +191,20 @@ class AudioCapture:
 
         return max(db for _t, db in self._peaks)
 
+    def apply_config(self, camera_config: dict) -> None:
+        """Takes over the settings that do not need a restart of the capture."""
+
+        self.settings = audio.get_settings(camera_config)
+        self.trigger.threshold = self.settings.threshold
+        self.trigger.hold = _event_gap(camera_config)
+
+        if not self.settings.trigger:
+            self._end_event()
+
     def get_state(self) -> AudioState:
-        return AudioState(level=self.level, peak=self.peak, exceeded=False)
+        exceeded = self.settings.trigger and self.trigger.exceeded(time.monotonic())
+
+        return AudioState(level=self.level, peak=self.peak, exceeded=bool(exceeded))
 
     def _kill(self) -> None:
         process = self._process
@@ -255,6 +314,20 @@ class AudioCapture:
     def _reset_level(self) -> None:
         self._powers.clear()
         self._peaks.clear()
+        self._end_event()
+
+    def _end_event(self) -> None:
+        if self.trigger.reset():
+            self._fire('eventend')
+
+    def _fire(self, action: str) -> None:
+        asyncio.ensure_future(self._trigger_action(action))
+
+    async def _trigger_action(self, action: str) -> None:
+        # a lock keeps the start and the end of an event in order
+        async with self._trigger_lock:
+            logging.info(f'sound event {action} on camera {self.camera_id}')
+            await motionctl.trigger_action(self.camera_id, action)
 
     def _on_block(self, pcm: bytes) -> None:
         now = time.monotonic()
@@ -267,9 +340,25 @@ class AudioCapture:
         while self._peaks and now - self._peaks[0][0] > 3:
             self._peaks.popleft()
 
+        if self.settings.trigger and self.level is not None:
+            change = self.trigger.update(self.level, now)
+            if change == 'start':
+                self._fire('eventstart')
+
+            elif change == 'end':
+                self._fire('eventend')
+
 
 def _redact(command: list[str]) -> str:
     return re.sub(r'(://)[^/@\s]+@', r'\1***@', ' '.join(command))
+
+
+def _event_gap(camera_config: dict) -> float:
+    try:
+        return max(1.0, float(camera_config.get('event_gap', 30)))
+
+    except (TypeError, ValueError):
+        return 30.0
 
 
 def signature(camera_config: dict) -> tuple:
@@ -322,6 +411,9 @@ async def _update() -> None:
             if camera_config is None or capture.signature != signature(camera_config):
                 await capture.stop()
                 del _captures[camera_id]
+
+            else:
+                capture.apply_config(camera_config)
 
         for camera_id, camera_config in wanted.items():
             if camera_id not in _captures:

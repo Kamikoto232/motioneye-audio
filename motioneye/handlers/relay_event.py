@@ -79,7 +79,11 @@ class RelayEventHandler(BaseHandler):
             utils.validate_paths(filename, target_dir=target_dir)
 
         if event == 'start':
-            if not camera_config['@motion_detection']:
+            # a sound event comes without motion detection as well
+            sound_event = camera_config.get('@audio_enabled') and camera_config.get(
+                '@audio_trigger'
+            )
+            if not camera_config['@motion_detection'] and not sound_event:
                 logging.debug(
                     f'ignoring start event for camera with id {camera_id} and motion detection disabled'
                 )
