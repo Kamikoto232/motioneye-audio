@@ -56,6 +56,11 @@ class ConfigHandler(BaseHandler):
             'actions',
             'streaming_framerate',
             'streaming_server_resize',
+            'streaming_audio',
+            'audio_enabled',
+            'audio_show_level',
+            'audio_threshold',
+            'audio_streaming_format',
             'url',  # only for simple mjpeg cameras
         }
     )

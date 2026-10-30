@@ -38,7 +38,15 @@ if TYPE_CHECKING:
 from argon2 import PasswordHasher
 from tornado.ioloop import IOLoop
 
-from motioneye import meyectl, motionctl, settings, tasks, uploadservices, utils
+from motioneye import (
+    audio,
+    meyectl,
+    motionctl,
+    settings,
+    tasks,
+    uploadservices,
+    utils,
+)
 from motioneye.controls import diskctl, smbctl, v4l2ctl
 from motioneye.controls.powerctl import PowerControl
 
@@ -1166,6 +1174,8 @@ def motion_camera_ui_to_dict(ui: dict, prev_config: dict | None = None) -> dict:
         'mask_file': '',
         'picture_output_motion': ui['create_debug_media'],
         'movie_output_motion': ui['create_debug_media'],
+        # audio
+        **audio.ui_to_settings(ui, prev_config),
         # working schedule
         '@working_schedule': '',
         # events
@@ -1196,6 +1206,11 @@ def motion_camera_ui_to_dict(ui: dict, prev_config: dict | None = None) -> dict:
             data['stream_authentication'] = (
                 str(streaming_username) + ':' + str(streaming_password)
             )
+
+    if data.get('@audio_streaming_auth_mode') == 'basic':
+        data['@audio_streaming_authentication'] = audio.merge_stream_authentication(
+            ui, prev_config
+        )
 
     if utils.is_v4l2_camera(prev_config):
         proto = 'v4l2'
@@ -1713,6 +1728,8 @@ def motion_camera_dict_to_ui(data: dict) -> dict:
             cast(int, data.get('stream_auth_method')), 'disabled'
         ),
         'streaming_motion': int(data['stream_motion']),
+        # audio
+        **audio.settings_to_ui(data),
         # still images
         'still_images': False,
         'capture_mode': 'motion-triggered',
@@ -1774,6 +1791,8 @@ def motion_camera_dict_to_ui(data: dict) -> dict:
         'sunday_from': '',
         'sunday_to': '',
     }
+
+    ui.update(audio.stream_credentials_to_ui(data))
 
     stream_authentication = data.get('stream_authentication') or ''
     streaming_username, _, streaming_password = stream_authentication.partition(':')
@@ -2557,6 +2576,9 @@ def _set_default_motion_camera(camera_id: int, data: dict) -> None:
 
     data.setdefault('@webcam_resolution', 100)
     data.setdefault('@webcam_server_resize', False)
+
+    for key, value in audio.default_settings(camera_id).items():
+        data.setdefault(key, value)
 
     data.setdefault('text_left', data['camera_name'])
     data.setdefault('text_right', '%Y-%m-%d\\n%T')

@@ -600,6 +600,10 @@ function initUI() {
     $('#videoStreamingEnabledSwitch').on('change', checkMinimizeSection).on('change', updateConfigUI);
     $('#streamingAuthModeSelect').on('change', updateConfigUI);
     $('#streamingServerResizeSwitch').on('change', updateConfigUI);
+    $('#audioEnabledSwitch').on('change', checkMinimizeSection).on('change', updateConfigUI);
+    $('#audioTriggerSwitch').on('change', updateConfigUI);
+    $('#audioStreamingEnabledSwitch').on('change', checkMinimizeSection).on('change', updateConfigUI);
+    $('#audioStreamingAuthModeSelect').on('change', updateConfigUI);
     $('#stillImagesEnabledSwitch').on('change', checkMinimizeSection).on('change', updateConfigUI);
     $('#preservePicturesSelect').on('change', updateConfigUI);
     $('#moviesEnabledSwitch').on('change', checkMinimizeSection).on('change', updateConfigUI);
@@ -1487,6 +1491,18 @@ function updateConfigUI() {
         $('#textOverlayEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
     }
 
+    /* audio switches */
+    if (!$('#audioEnabledSwitch').get(0).checked) {
+        $('#audioEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
+
+        /* the audio stream needs the audio capture */
+        $('#audioStreamingEnabledSwitch').parent().each(markHideLogic);
+    }
+
+    if (!$('#audioStreamingEnabledSwitch').get(0).checked) {
+        $('#audioStreamingEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
+    }
+
     /* still images switch */
     if (!$('#stillImagesEnabledSwitch').get(0).checked) {
         $('#stillImagesEnabledSwitch').parent().next('table.settings').find('tr.settings-item').each(markHideLogic);
@@ -1888,6 +1904,24 @@ function cameraUi2Dict() {
         'streaming_auth_mode': $('#streamingAuthModeSelect').val() || 'disabled', /* compatibility with old motion */
         'streaming_username': $('#streamingUsernameEntry').val(),
         'streaming_motion': $('#streamingMotion')[0].checked,
+        'streaming_audio': $('#streamingAudioSelect').val() || 'with_audio',
+
+        /* audio */
+        'audio_enabled': $('#audioEnabledSwitch')[0].checked,
+        'audio_source': $('#audioSourceEntry').val(),
+        'audio_quality': $('#audioQualitySelect').val(),
+        'audio_format': $('#audioFormatSelect').val(),
+        'audio_record': $('#audioRecordSwitch')[0].checked,
+        'audio_trigger': $('#audioTriggerSwitch')[0].checked,
+        'audio_threshold': $('#audioThresholdSlider').val(),
+        'audio_show_level': $('#audioShowLevelSwitch')[0].checked,
+
+        /* audio streaming */
+        'audio_streaming': $('#audioStreamingEnabledSwitch')[0].checked,
+        'audio_streaming_format': $('#audioStreamingFormatSelect').val(),
+        'audio_streaming_port': $('#audioStreamingPortEntry').val(),
+        'audio_streaming_auth_mode': $('#audioStreamingAuthModeSelect').val() || 'disabled',
+        'audio_streaming_username': $('#audioStreamingUsernameEntry').val(),
 
         /* still images */
         'still_images': $('#stillImagesEnabledSwitch')[0].checked,
@@ -1977,6 +2011,10 @@ function cameraUi2Dict() {
 
     if ($('#streamingPasswordEntry').val() !== '*****') {
         dict['streaming_password'] = $('#streamingPasswordEntry').val();
+    }
+
+    if ($('#audioStreamingPasswordEntry').val() !== '*****') {
+        dict['audio_streaming_password'] = $('#audioStreamingPasswordEntry').val();
     }
 
     /* video controls */
@@ -2214,6 +2252,36 @@ function dict2CameraUi(dict) {
     /* Hide if streaming_username is unset, since streaming_password is not passed if not an empty string */
     $('#streamingPasswordEntry').val('streaming_password' in dict ? dict['streaming_password'] : '*****'); markHideIfNull('streaming_username', 'streamingPasswordEntry');
     $('#streamingMotion')[0].checked = dict['streaming_motion']; markHideIfNull('streaming_motion', 'streamingMotion');
+    $('#streamingAudioSelect').val(dict['streaming_audio'] || 'with_audio'); markHideIfNull('audio_enabled', 'streamingAudioSelect');
+
+    /* audio */
+    $('#audioEnabledSwitch')[0].checked = dict['audio_enabled']; markHideIfNull('audio_enabled', 'audioEnabledSwitch');
+    $('#audioSourceEntry').val(dict['audio_source']); markHideIfNull('audio_source', 'audioSourceEntry');
+    $('#audioQualitySelect').val(dict['audio_quality']); markHideIfNull('audio_quality', 'audioQualitySelect');
+    $('#audioFormatSelect').val(dict['audio_format']); markHideIfNull('audio_format', 'audioFormatSelect');
+    $('#audioRecordSwitch')[0].checked = dict['audio_record']; markHideIfNull('audio_record', 'audioRecordSwitch');
+    $('#audioTriggerSwitch')[0].checked = dict['audio_trigger']; markHideIfNull('audio_trigger', 'audioTriggerSwitch');
+    $('#audioThresholdSlider').val(dict['audio_threshold']); markHideIfNull('audio_threshold', 'audioThresholdSlider');
+    $('#audioShowLevelSwitch')[0].checked = dict['audio_show_level']; markHideIfNull('audio_show_level', 'audioShowLevelSwitch');
+
+    /* audio streaming */
+    $('#audioStreamingEnabledSwitch')[0].checked = dict['audio_streaming']; markHideIfNull('audio_streaming', 'audioStreamingEnabledSwitch');
+    $('#audioStreamingFormatSelect').val(dict['audio_streaming_format']); markHideIfNull('audio_streaming_format', 'audioStreamingFormatSelect');
+    $('#audioStreamingPortEntry').val(dict['audio_streaming_port']); markHideIfNull('audio_streaming_port', 'audioStreamingPortEntry');
+    $('#audioStreamingAuthModeSelect').val(dict['audio_streaming_auth_mode']); markHideIfNull('audio_streaming_auth_mode', 'audioStreamingAuthModeSelect');
+    $('#audioStreamingUsernameEntry').val(dict['audio_streaming_username']); markHideIfNull('audio_streaming_username', 'audioStreamingUsernameEntry');
+    $('#audioStreamingPasswordEntry').val('audio_streaming_password' in dict ? dict['audio_streaming_password'] : '*****'); markHideIfNull('audio_streaming_username', 'audioStreamingPasswordEntry');
+
+    var audioStreamUrl = null;
+    var audioVideoStreamUrl = null;
+    if (dict['proto'] != 'motioneye' && dict['proto'] != 'mjpeg') {
+        var audioServerUrl = 'http://' + location.host.split(':')[0] + ':' + dict.audio_streaming_port;
+        audioStreamUrl = audioServerUrl + '/';
+        audioVideoStreamUrl = audioServerUrl + '/video';
+    }
+
+    $('#audioStreamUrlHtml').data('url', audioStreamUrl); markHideIfNull(!audioStreamUrl, 'audioStreamUrlHtml');
+    $('#audioVideoStreamUrlHtml').data('url', audioVideoStreamUrl); markHideIfNull(!audioVideoStreamUrl, 'audioVideoStreamUrlHtml');
 
     var cameraUrl = location.protocol + '//' + location.host + basePath + 'picture/' + dict.id + '/';
 
@@ -5576,7 +5644,7 @@ $(document).on('click', '#authorizeLinkHtml a', function () {
     authorizeUpload();
     return false;
 });
-$(document).on('click', '#streamingSnapshotUrlHtml a, #streamingMjpgUrlHtml a, #streamingEmbedUrlHtml a', function () {
+$(document).on('click', '#streamingSnapshotUrlHtml a, #streamingMjpgUrlHtml a, #streamingEmbedUrlHtml a, #audioStreamUrlHtml a, #audioVideoStreamUrlHtml a', function () {
     showUrl($(this).parent().data('url'));
     return false;
 });

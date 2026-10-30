@@ -598,6 +598,64 @@
                         </tr>
                     </table>
 
+                    <!-- Audio -->
+                    <div class="settings-section-title" id="audioSectionDiv">
+                        <input type="checkbox" class="styled section audio camera-config" id="audioEnabledSwitch">
+                        <span class="help-mark" title="{{ _("Enable this to capture the sound of this camera: loudness meter, listening in the browser, recording together with the video and audio streams.") }}">?</span>
+                        <a class="settings-section-title">{{ _("Audio") }}</a>
+                        <span class="minimize"></span>
+                    </div>
+                    <table class="settings">
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Audio Source") }}</span></td>
+                            <td class="settings-item-value"><input type="text" autocapitalize="none" class="styled audio camera-config" id="audioSourceEntry" placeholder="{{ _("same as the camera") }}"></td>
+                            <td><span class="help-mark" title="{{ _("Where the sound comes from. Leave empty to use the audio track of the network camera stream (e.g. RTSP). Otherwise enter a stream URL (e.g. rtsp://192.168.1.1/audio) or a local microphone: hw:1,0 or plughw:1,0 (ALSA), pulse or pulse:device (PulseAudio).") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Audio Quality") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled audio camera-config" id="audioQualitySelect">
+                                    <option value="low">{{ _("Low (16 kHz, 48 kbit/s)") }}</option>
+                                    <option value="medium">{{ _("Medium (32 kHz, 96 kbit/s)") }}</option>
+                                    <option value="high">{{ _("High (48 kHz, 192 kbit/s)") }}</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("Sample rate and bitrate of the recorded and streamed sound.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Audio Format") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled audio camera-config" id="audioFormatSelect">
+                                    <option value="aac">AAC</option>
+                                    <option value="mp3">MP3</option>
+                                    <option value="opus">Opus</option>
+                                    <option value="wav">WAV (PCM)</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("Audio codec used when recording sound into the movies. If the movie container does not support it, a compatible codec is used instead.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Record Audio") }}</span></td>
+                            <td class="settings-item-value"><input type="checkbox" class="styled audio camera-config" id="audioRecordSwitch"></td>
+                            <td><span class="help-mark" title="{{ _("Enable this to add the sound to the movies recorded by this camera.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Record On Loud Sound") }}</span></td>
+                            <td class="settings-item-value"><input type="checkbox" class="styled audio camera-config" id="audioTriggerSwitch"></td>
+                            <td><span class="help-mark" title="{{ _("Start recording (video and sound) when the volume exceeds the threshold, the same way as when motion is detected. The Event Gap, Pre-Capture and Post-Capture settings of the motion detection section apply as well.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" min="-90" max="0" snap="0" ticks="-90|-75|-60|-45|-30|-15|0" decimals="0" unit="dB" depends="audioTrigger">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Volume Threshold") }}</span></td>
+                            <td class="settings-item-value"><input type="text" class="range styled audio camera-config" id="audioThresholdSlider"></td>
+                            <td><span class="help-mark" title="{{ _("The volume (in dB relative to full scale, 0 dB is the loudest possible sound) above which the recording starts.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Show Volume Meter") }}</span></td>
+                            <td class="settings-item-value"><input type="checkbox" class="styled audio camera-config" id="audioShowLevelSwitch"></td>
+                            <td><span class="help-mark" title="{{ _("Show the volume meter over the camera picture in the web interface.") }}">?</span></td>
+                        </tr>
+                    </table>
+
                     <!-- Video Streaming -->
                     <div class="settings-section-title" minimize-switch-independent="true" id="streamingSectionDiv">
                         <input type="checkbox" class="styled section streaming camera-config" id="videoStreamingEnabledSwitch">
@@ -653,6 +711,16 @@
                             <td><span class="help-mark" title="{{ _("password used for video streaming authentication. When Admin-only access is enabled, use credentials different from the Surveillance user.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Audio") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled streaming camera-config" id="streamingAudioSelect">
+                                    <option value="with_audio">{{ _("With audio") }}</option>
+                                    <option value="without_audio">{{ _("Without audio") }}</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("Whether the embedded page and the web interface play the sound together with the picture (when the sound is enabled in the Audio section). The MJPEG stream of the video stream port is not affected.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Movado-Optimigo") }}</span></td>
                             <td class="settings-item-value"><input type="checkbox" class="styled streaming camera-config" id="streamingMotion"></td>
                             <td><span class="help-mark" title="{{ _("ebligu ĉi tion, se vi volas pli malaltan kadran indicon por la livera fluo kiam neniu movo estas detektita") }}">?</span></td>
@@ -686,6 +754,74 @@
                                 </div>
                             </td>
                             <td><span class="help-mark" title="{{ _("URL kiu provizas minimuman HTML-dokumenton enhavantan la kameraan kadron, preta por esti enigita") }}">?</span></td>
+                        </tr>
+                    </table>
+
+                    <!-- Audio Streaming -->
+                    <div class="settings-section-title" minimize-switch-independent="true" id="audioStreamingSectionDiv">
+                        <input type="checkbox" class="styled section audio-streaming camera-config" id="audioStreamingEnabledSwitch">
+                        <span class="help-mark" title="{{ _("Enable this if you want an audio-only stream of this camera for other programs (e.g. VLC). The sound has to be enabled in the Audio section.") }}">?</span>
+                        <a class="settings-section-title">{{ _("Audio Stream") }}</a>
+                        <span class="minimize"></span>
+                    </div>
+                    <table class="settings">
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Stream Format") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled audio-streaming camera-config" id="audioStreamingFormatSelect">
+                                    <option value="mp3">MP3</option>
+                                    <option value="aac">AAC</option>
+                                    <option value="opus">Opus (Ogg)</option>
+                                    <option value="wav">WAV (PCM)</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("The format of the live audio stream. MP3 and WAV are played by every browser and program.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" min="1024" max="65535" required="true">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Stream Port") }}</span></td>
+                            <td class="settings-item-value"><input type="text" class="styled audio-streaming camera-config" id="audioStreamingPortEntry"></td>
+                            <td><span class="help-mark" title="{{ _("The TCP port on which the audio stream is served.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Authentication Mode") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled audio-streaming camera-config" id="audioStreamingAuthModeSelect">
+                                    <option value="disabled">{{ _("Disabled") }}</option>
+                                    <option value="basic">Basic</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("The authentication method of the audio stream.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" required="true" strip="true" depends="audioStreamingAuthMode=basic">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Username") }}</span></td>
+                            <td class="settings-item-value"><input type="text" autocapitalize="none" class="styled audio-streaming camera-config" id="audioStreamingUsernameEntry"></td>
+                            <td><span class="help-mark" title="{{ _("Username used for audio streaming authentication.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" required="true" strip="true" depends="audioStreamingAuthMode=basic">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Password") }}</span></td>
+                            <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled audio-streaming camera-config" id="audioStreamingPasswordEntry"></td>
+                            <td><span class="help-mark" title="{{ _("Password used for audio streaming authentication.") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td colspan="100"><div class="settings-item-separator"></div></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Useful URLs") }}</span></td>
+                            <td class="settings-item-value">
+                                <div class="html styled audio-streaming camera-config" id="audioStreamUrlHtml">
+                                    <a href="#">{{ _("Audio Stream URL") }}</a>
+                                </div>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("URL that provides the live sound of the camera") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item">
+                            <td class="settings-item-label"></td>
+                            <td class="settings-item-value">
+                                <div class="html styled audio-streaming camera-config" id="audioVideoStreamUrlHtml">
+                                    <a href="#">{{ _("Video + Audio Stream URL") }}</a>
+                                </div>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("URL that provides the live picture together with the sound (Matroska/MJPEG)") }}">?</span></td>
                         </tr>
                     </table>
 

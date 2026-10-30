@@ -156,11 +156,26 @@ _NOT_FORWARDED = {
     'web_hook_notifications_verify': False,
     'web_hook_end_notifications_verify': False,
     'web_hook_storage_verify': False,
+    'streaming_audio': 'without_audio',
+    'audio_enabled': True,
+    'audio_source': 'hw:1,0',
+    'audio_quality': 'high',
+    'audio_format': 'opus',
+    'audio_record': False,
+    'audio_trigger': True,
+    'audio_threshold': -42,
+    'audio_show_level': False,
+    'audio_streaming': True,
+    'audio_streaming_format': 'wav',
+    'audio_streaming_port': 9555,
+    'audio_streaming_auth_mode': 'basic',
 }
 # what the camera answer carries besides settings
 _NOT_SETTINGS = {
     'actions',
     'available_disks',
+    'audio_streaming_password',  # stored together with the username
+    'audio_streaming_username',
     'available_resolutions',
     'device_url',
     'disk_total',
