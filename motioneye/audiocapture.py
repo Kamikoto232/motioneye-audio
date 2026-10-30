@@ -241,10 +241,18 @@ class AudioCapture:
 
         return max(db for _t, db in self._peaks)
 
-    def subscribe(self) -> asyncio.Queue:
-        """Returns a queue that gets the PCM blocks, and None when the capture stops."""
+    def subscribe(self, backlog: float = 0.0) -> asyncio.Queue:
+        """Returns a queue that gets the PCM blocks, and None when the capture stops.
+
+        The last ``backlog`` seconds of sound come first: a browser needs some
+        sound ahead to start playing and would wait for it for several seconds.
+        """
 
         queue: asyncio.Queue = asyncio.Queue(maxsize=_LISTENER_BLOCKS)
+        if backlog > 0:
+            for pcm in list(self._ring)[-math.ceil(backlog / BLOCK_SECONDS) :]:
+                queue.put_nowait(pcm)
+
         self._listeners.add(queue)
 
         return queue

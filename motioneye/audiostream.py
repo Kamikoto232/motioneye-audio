@@ -47,6 +47,8 @@ VIDEO_AUDIO_CONTENT_TYPE = 'video/x-matroska'
 _VIDEO_AUDIO_FORMAT = 'aac'
 _FIRST_FRAME_TIMEOUT = 8.0
 _READ_SIZE = 4096
+# a live listener starts with this much of the latest sound (see subscribe)
+_LISTEN_BACKLOG_SECONDS = 2.0
 _OPUS_SAMPLE_RATES = (8000, 12000, 16000, 24000, 48000)
 
 
@@ -133,7 +135,7 @@ async def audio_stream(capture, fmt: str) -> AsyncIterator[bytes]:
     """Yields the sound of a camera encoded as the given format."""
 
     settings = capture.settings
-    queue = capture.subscribe()
+    queue = capture.subscribe(_LISTEN_BACKLOG_SECONDS)
     process = None
     feeder = None
     try:
@@ -152,6 +154,11 @@ async def audio_stream(capture, fmt: str) -> AsyncIterator[bytes]:
             '-nostdin',
             '-loglevel',
             'error',
+            # the format of the input is known, so there is nothing to analyze
+            '-probesize',
+            '32',
+            '-analyzeduration',
+            '0',
             '-f',
             's16le',
             '-ar',
@@ -239,6 +246,10 @@ async def video_audio_stream(
             'mjpeg',
             '-i',
             'pipe:0',
+            '-probesize',
+            '32',
+            '-analyzeduration',
+            '0',
             '-f',
             's16le',
             '-ar',

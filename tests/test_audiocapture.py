@@ -188,6 +188,22 @@ class CaptureTest(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(audiocapture.get_capture(1))
 
 
+class ListenerBacklogTest(unittest.IsolatedAsyncioTestCase):
+    async def test_a_listener_starts_with_the_latest_sound(self):
+        capture = audiocapture.AudioCapture(
+            1, {'@id': 1, '@audio_enabled': True, '@audio_quality': 'low'}
+        )
+        for value in range(30):
+            capture._on_block(bytes([value, 0]) * (capture.block_size // 2))
+
+        queue = capture.subscribe(backlog=1.0)
+
+        self.assertEqual(10, queue.qsize())
+        self.assertEqual(20, queue.get_nowait()[0])
+
+        self.assertEqual(0, capture.subscribe().qsize())
+
+
 @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is not installed')
 class RawPcmSourceTest(unittest.IsolatedAsyncioTestCase):
     """A source that streams bare PCM, like the IPCamera Android app does."""

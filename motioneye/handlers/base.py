@@ -15,8 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import functools
+import hashlib
 import json
 import logging
+import os
 from secrets import token_hex
 from time import time
 
@@ -39,6 +42,35 @@ _CSP = (
 # In-memory session store for browser session authentication
 # Format: session_id -> {'user': role, 'expires': timestamp}
 _session_store: dict = {}
+
+
+@functools.cache
+def _asset_version() -> str:
+    """Version of the scripts and styles for the ?v= of their URLs.
+
+    The static files with ?v= are cached by the browser for years, so the URL
+    has to change whenever they do (the version of motionEye alone does not).
+    """
+
+    root = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
+    digest = hashlib.sha1(VERSION.encode(), usedforsecurity=False)
+    for name in ('js', 'css'):
+        directory = os.path.join(root, name)
+        try:
+            names = sorted(os.listdir(directory))
+
+        except OSError:
+            continue
+
+        for filename in names:
+            try:
+                with open(os.path.join(directory, filename), 'rb') as f:
+                    digest.update(filename.encode() + f.read())
+
+            except OSError:
+                continue
+
+    return f'{VERSION}-{digest.hexdigest()[:8]}'
 
 
 def session_expiry_seconds(user_type: str) -> int:
@@ -143,6 +175,7 @@ class BaseHandler(RequestHandler):
         self.set_header('Content-Security-Policy', _CSP)
 
         context.setdefault('version', VERSION)
+        context.setdefault('asset_version', _asset_version())
 
         content = template.render(template_name, **context)
         self.finish(content)

@@ -4801,13 +4801,6 @@ function setCameraSound(cameraFrameDiv, on) {
     }
 }
 
-$(document).on('click', 'span.camera-sound', function () {
-    var cameraFrameDiv = $(this).parents('div.camera-frame');
-    setCameraSound(cameraFrameDiv, !cameraFrameDiv[0].soundPlayer);
-
-    return false;
-});
-
 function addCameraFrameUi(cameraConfig) {
     var cameraId = cameraConfig.id;
 
@@ -4944,6 +4937,13 @@ function addCameraFrameUi(cameraConfig) {
     });
 
     cameraOverlay.find('div.camera-overlay-top, div.camera-overlay-bottom').on('click', function () {
+        return false;
+    });
+
+    /* bound here: the click does not get past the overlay to a handler of the document */
+    cameraFrameDiv.find('span.camera-sound').on('click', function () {
+        setCameraSound(cameraFrameDiv, !cameraFrameDiv[0].soundPlayer);
+
         return false;
     });
 
