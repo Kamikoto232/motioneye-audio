@@ -179,7 +179,9 @@ def build_command(
     return command
 
 
-async def mux(movie: str, pcm: str, pcm_bytes: int, settings: audio.AudioSettings) -> bool:
+async def mux(
+    movie: str, pcm: str, pcm_bytes: int, settings: audio.AudioSettings
+) -> bool:
     """Adds the sound to the movie in place. Returns True if it was added."""
 
     binary = mediafiles.find_ffmpeg()[0]

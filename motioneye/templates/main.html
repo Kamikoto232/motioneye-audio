@@ -710,7 +710,7 @@
                             <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled streaming camera-config" id="streamingPasswordEntry"></td>
                             <td><span class="help-mark" title="{{ _("password used for video streaming authentication. When Admin-only access is enabled, use credentials different from the Surveillance user.") }}">?</span></td>
                         </tr>
-                        <tr class="settings-item">
+                        <tr class="settings-item" depends="audioEnabled">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Audio") }}</span></td>
                             <td class="settings-item-value">
                                 <select class="styled streaming camera-config" id="streamingAudioSelect">

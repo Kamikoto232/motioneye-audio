@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from motioneye import audio, audiocapture, audiomux
@@ -115,7 +116,7 @@ class MuxTest(unittest.IsolatedAsyncioTestCase):
 
     def _make_movie(self, name, seconds):
         path = os.path.join(self.dir, name)
-        subprocess.run(  # noqa: S603
+        subprocess.run(
             [
                 _FFMPEG,
                 '-v',
@@ -135,7 +136,7 @@ class MuxTest(unittest.IsolatedAsyncioTestCase):
 
     def _make_pcm(self, seconds, rate):
         path = os.path.join(self.dir, 'a.pcm')
-        subprocess.run(  # noqa: S603
+        subprocess.run(
             [
                 _FFMPEG,
                 '-v',
@@ -202,8 +203,7 @@ class MuxTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_failure_keeps_the_movie(self):
         movie = self._make_movie('a.mp4', 2)
-        with open(movie, 'rb') as f:
-            before = f.read()
+        before = Path(movie).read_bytes()
         pcm, size = self._make_pcm(2, 16000)
 
         with mock.patch.object(audiomux, '_run', mock.AsyncMock()) as run:
@@ -213,8 +213,7 @@ class MuxTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertFalse(added)
-        with open(movie, 'rb') as f:
-            self.assertEqual(before, f.read())
+        self.assertEqual(before, Path(movie).read_bytes())
         self.assertEqual(['a.mp4', 'a.pcm'], sorted(os.listdir(self.dir)))
 
 
@@ -294,8 +293,7 @@ class RecordingTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_stale_recording_is_removed(self):
         path = os.path.join(self.dir, '.audio-1.pcm')
-        with open(path, 'wb') as f:
-            f.write(b'x')
+        Path(path).write_bytes(b'x')
 
         self._capture()
 

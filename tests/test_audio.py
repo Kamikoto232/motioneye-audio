@@ -31,9 +31,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual('disabled', settings.streaming_auth_mode)
 
     def test_threshold_is_clamped(self):
-        self.assertEqual(
-            -90, audio.get_settings({'@audio_threshold': -500}).threshold
-        )
+        self.assertEqual(-90, audio.get_settings({'@audio_threshold': -500}).threshold)
         self.assertEqual(0, audio.get_settings({'@audio_threshold': 12}).threshold)
 
     def test_quality_sets_sample_rate_and_bitrate(self):
@@ -84,12 +82,17 @@ class SettingsTest(unittest.TestCase):
 
         self.assertEqual(
             'user:secret',
-            audio.merge_stream_authentication({'audio_streaming_username': 'user'}, prev),
+            audio.merge_stream_authentication(
+                {'audio_streaming_username': 'user'}, prev
+            ),
         )
         self.assertEqual(
             'other:new',
             audio.merge_stream_authentication(
-                {'audio_streaming_username': 'other', 'audio_streaming_password': 'new'},
+                {
+                    'audio_streaming_username': 'other',
+                    'audio_streaming_password': 'new',
+                },
                 prev,
             ),
         )
@@ -142,7 +145,9 @@ class SourceTest(unittest.TestCase):
             {'@audio_source': 'rtsp://mic/audio', 'videodevice': '/dev/video0'}
         )
 
-        self.assertEqual(['-rtsp_transport', 'tcp', '-i', 'rtsp://mic/audio'], arguments)
+        self.assertEqual(
+            ['-rtsp_transport', 'tcp', '-i', 'rtsp://mic/audio'], arguments
+        )
 
 
 class ConfigTest(unittest.TestCase):

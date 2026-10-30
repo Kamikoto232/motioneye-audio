@@ -68,7 +68,9 @@ class VideoAudioStreamTest(unittest.IsolatedAsyncioTestCase):
             capture._publish(None)
 
         with mock.patch.object(
-            audiostream.mjpgclient, 'get_jpg', side_effect=lambda _id: bytes(bytearray(jpeg))
+            audiostream.mjpgclient,
+            'get_jpg',
+            side_effect=lambda _id: bytes(bytearray(jpeg)),
         ):
             feeder = asyncio.ensure_future(feed())
             chunks = audiostream.video_audio_stream(capture, 1, 10)

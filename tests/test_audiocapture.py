@@ -162,7 +162,9 @@ class CaptureTest(unittest.IsolatedAsyncioTestCase):
         configs = {1: config_a}
 
         with (
-            mock.patch.object(audiocapture.config, 'get_camera_ids', lambda: list(configs)),
+            mock.patch.object(
+                audiocapture.config, 'get_camera_ids', lambda: list(configs)
+            ),
             mock.patch.object(audiocapture.config, 'get_camera', configs.get),
             mock.patch.object(audiocapture.AudioCapture, 'start'),
         ):

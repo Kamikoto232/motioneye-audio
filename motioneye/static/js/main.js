@@ -4738,7 +4738,8 @@ function updateCameraAudio(cameraId, cameraFrameDiv, clear) {
     var level = parseFloat(getCookie('audio_level_' + cameraId));
     var enabled = config['audio_enabled'] && config['proto'] != 'mjpeg' && !clear;
 
-    cameraFrameDiv.find('span.camera-sound').toggle(!!config['audio_enabled'] && config['proto'] != 'mjpeg');
+    cameraFrameDiv.find('span.camera-sound').toggle(!!config['audio_enabled'] && config['proto'] != 'mjpeg' &&
+            config['streaming_audio'] != 'without_audio');
 
     if (!enabled || isNaN(level)) {
         dbSpan.text(enabled ? '-- dB' : '');

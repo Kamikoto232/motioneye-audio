@@ -31,8 +31,8 @@ from urllib.parse import urlsplit, urlunsplit
 __all__ = (
     'AUDIO_FORMATS',
     'AUDIO_QUALITIES',
-    'AudioSettings',
     'DB_FLOOR',
+    'AudioSettings',
     'default_settings',
     'get_settings',
     'input_arguments',

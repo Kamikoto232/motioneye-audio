@@ -60,6 +60,9 @@ class AudioHandler(BaseHandler):
                 f'GET access denied to admin-only camera "{camera_id}" for operation "{op}"',
             )
 
+        await self.serve(camera_id_int, camera_config, op)
+
+    async def serve(self, camera_id_int: int, camera_config: dict, op: str) -> None:
         fmt = self.get_argument('format', None)
         if fmt is not None and fmt not in audio.AUDIO_FORMATS:
             raise HTTPError(400, 'unknown format')
@@ -109,7 +112,9 @@ class AudioHandler(BaseHandler):
     async def stream(self, chunks, fmt: str | None) -> None:
         self.set_header(
             'Content-Type',
-            audiostream.content_type(fmt) if fmt else audiostream.VIDEO_AUDIO_CONTENT_TYPE,
+            audiostream.content_type(fmt)
+            if fmt
+            else audiostream.VIDEO_AUDIO_CONTENT_TYPE,
         )
         self.set_header('Cache-Control', 'no-store, must-revalidate')
         self.set_header('Pragma', 'no-cache')

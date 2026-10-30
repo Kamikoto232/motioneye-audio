@@ -37,8 +37,8 @@ from motioneye import audio, mediafiles, mjpgclient
 __all__ = (
     'StreamUnavailableError',
     'audio_stream',
-    'content_type',
     'codec_arguments',
+    'content_type',
     'video_audio_stream',
     'wav_header',
 )

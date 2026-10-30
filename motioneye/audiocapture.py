@@ -51,10 +51,10 @@ __all__ = (
     'on_event_end',
     'on_event_start',
     'on_movie_end',
-    'will_add_sound',
     'start',
     'stop',
     'update',
+    'will_add_sound',
 )
 
 # the loudness is measured on blocks of this duration
@@ -286,7 +286,9 @@ class AudioCapture:
         except (TypeError, ValueError):
             pre_capture, framerate = 0.0, 1.0
 
-        seconds = min(_MAX_PRE_ROLL_SECONDS, _PRE_ROLL_SECONDS + pre_capture / framerate)
+        seconds = min(
+            _MAX_PRE_ROLL_SECONDS, _PRE_ROLL_SECONDS + pre_capture / framerate
+        )
         self._ring = deque(self._ring, maxlen=math.ceil(seconds / BLOCK_SECONDS))
         self._target_dir = str(camera_config.get('target_dir') or '')
 
@@ -338,7 +340,9 @@ class AudioCapture:
 
         recording.flush()
         try:
-            return await audiomux.mux(movie, recording.path, recording.size, self.settings)
+            return await audiomux.mux(
+                movie, recording.path, recording.size, self.settings
+            )
 
         finally:
             if not self._event_active:
@@ -493,7 +497,9 @@ class AudioCapture:
         recording = self._recording
         if recording is not None:
             if recording.size >= _MAX_RECORDING_SECONDS * self.sample_rate * 2:
-                logging.warning(f'the sound of camera {self.camera_id} is too long to keep')
+                logging.warning(
+                    f'the sound of camera {self.camera_id} is too long to keep'
+                )
                 self._close_recording()
 
             else:
@@ -611,8 +617,12 @@ async def _update() -> None:
                 capture.start()
                 logging.info(f'audio capture of camera {camera_id} started')
 
-    except Exception as e:
-        logging.error(f'could not update the audio captures: {e}', exc_info=True)
+        from motioneye import audioserver
+
+        audioserver.sync(wanted.items())
+
+    except Exception:
+        logging.exception('could not update the audio captures')
 
     finally:
         _updating = False
@@ -629,8 +639,12 @@ def start() -> None:
 
 
 def stop() -> None:
+    from motioneye import audioserver
+
+    audioserver.stop()
+
     for capture in _captures.values():
-        capture._stopped = True  # noqa: SLF001
-        capture._kill()  # noqa: SLF001
+        capture._stopped = True
+        capture._kill()
 
     _captures.clear()

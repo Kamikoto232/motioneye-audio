@@ -69,6 +69,21 @@ _(Docker images are provided on [Docker Hub](https://hub.docker.com/r/motioneyep
 
     Use usernamme _admin_ with empty password when prompted for credentials. For security, __please do set up a proper password for the admin user__, at least if you plan to make your motionEye installation accessible from the Internet.
 
+# Audio support (this fork)
+
+This fork adds sound to motionEye. It needs `ffmpeg` (already required for movie previews) and, to hear the sound, nothing else. Everything is off until the **Audio** switch of a camera is turned on, and the original API and settings are not changed.
+
+* **Source:** by default the audio track of the camera's network stream (e.g. RTSP). For other cameras, enter another stream URL or a local microphone (`hw:1,0` / `plughw:1,0` for ALSA, `pulse` or `pulse:<device>` for PulseAudio) in the _Audio Source_ field.
+* **Volume (dB):** shown next to the frame rate in the title of every camera, with an optional volume meter over the picture. The level is in dB relative to full scale (0 dB is the loudest sound, silence is -90 dB). The frame turns yellow while the volume is above the threshold, and red while a movie is being recorded, as before.
+* **Recording:** _Record Audio_ puts the sound in the movies (video is copied, only the sound is encoded; AAC, MP3, Opus or WAV where the container allows it). _Record On Loud Sound_ starts an event, like motion does, when the volume goes above the _Volume Threshold_; the event gap, pre- and post-capture settings of the motion detection section apply.
+* **Listening:** the speaker button next to the volume plays the live sound in the browser.
+* **Embedded page:** `/picture/<id>/frame/` plays the sound with the picture by default (_Video Streaming_ - _Audio_), `?audio=0` shows only the picture, `?audio=only` only the sound.
+* **API** (same login or signed requests as the rest of the API, also for cameras of remote motionEye servers):
+  * `GET /audio/<id>/stream/?format=mp3|aac|opus|wav` - the live sound
+  * `GET /audio/<id>/video/` - the live picture with sound (Matroska, MJPEG + AAC)
+  * `GET /audio/<id>/level/` - `{"level": -42.1, "peak": -30.2, "exceeded": false, "threshold": -30}`
+* **Audio Stream** section: serves the same on a port of its own with optional basic authentication, for programs like VLC: `http://<host>:<port>/` (sound) and `http://<host>:<port>/video` (picture with sound).
+
 # Upgrade
 
 When upgrading motionEye, remember to restart the service. To rule out any mix of old in-memory backend code with new frontend assets, it is recommended to stop it prior to the upgrade, and start it back up afterwards:
