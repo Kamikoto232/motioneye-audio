@@ -29,15 +29,17 @@ import asyncio
 import contextlib
 import logging
 import math
+import os
 import re
 import sys
+import tempfile
 import time
 from collections import deque
 from dataclasses import dataclass
 
 from tornado.ioloop import IOLoop
 
-from motioneye import audio, config, mediafiles, motionctl, utils
+from motioneye import audio, audiomux, config, mediafiles, motionctl, utils
 
 __all__ = (
     'AudioCapture',
@@ -46,6 +48,10 @@ __all__ = (
     'block_db',
     'get_capture',
     'get_state',
+    'on_event_end',
+    'on_event_start',
+    'on_movie_end',
+    'will_add_sound',
     'start',
     'stop',
     'update',
@@ -55,6 +61,13 @@ __all__ = (
 BLOCK_SECONDS = 0.1
 # the reported loudness is the average power of this many blocks
 _SMOOTHING_BLOCKS = 3
+# the sound kept from before an event starts, besides the pre-capture of motion
+_PRE_ROLL_SECONDS = 8
+_MAX_PRE_ROLL_SECONDS = 120
+# the recording of an event is kept this long after the event for the movie to end
+_RECORDING_GRACE_SECONDS = 60
+# a longer recording is not kept (about 1 GB of 48 kHz sound for 3 hours)
+_MAX_RECORDING_SECONDS = 3 * 3600
 # no sound received for this long: the level is unknown
 _STALE_SECONDS = 3.0
 # the volume counts as above the threshold this long after the last loud block
@@ -140,6 +153,29 @@ class ThresholdTrigger:
         return 'end' if was_active else None
 
 
+class _Recording:
+    """The raw sound of the running event, to be put in the movie."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.size = 0
+        self._file = open(path, 'wb')  # noqa: SIM115
+
+    def write(self, pcm: bytes) -> None:
+        self._file.write(pcm)
+        self.size += len(pcm)
+
+    def flush(self) -> None:
+        self._file.flush()
+
+    def close(self) -> None:
+        with contextlib.suppress(OSError):
+            self._file.close()
+
+        with contextlib.suppress(OSError):
+            os.remove(self.path)
+
+
 class AudioCapture:
     def __init__(self, camera_id: int, camera_config: dict) -> None:
         self.camera_id = camera_id
@@ -150,6 +186,14 @@ class AudioCapture:
             self.settings.threshold, _event_gap(camera_config)
         )
         self._trigger_lock = asyncio.Lock()
+
+        self._ring: deque[bytes] = deque()
+        self._recording: _Recording | None = None
+        self._event_active = False
+        self._close_handle: asyncio.TimerHandle | None = None
+        self._target_dir = ''
+        self._configure_recording(camera_config)
+        self._remove_stale_recording()
 
         self.sample_rate = self.settings.sample_rate
         self.block_size = int(self.sample_rate * BLOCK_SECONDS) * 2
@@ -176,6 +220,7 @@ class AudioCapture:
 
         self._task = None
         self._end_event()
+        self._close_recording()
 
     @property
     def level(self) -> float | None:
@@ -197,14 +242,98 @@ class AudioCapture:
         self.settings = audio.get_settings(camera_config)
         self.trigger.threshold = self.settings.threshold
         self.trigger.hold = _event_gap(camera_config)
+        self._configure_recording(camera_config)
 
         if not self.settings.trigger:
             self._end_event()
+
+        if not self.settings.record:
+            self._close_recording()
 
     def get_state(self) -> AudioState:
         exceeded = self.settings.trigger and self.trigger.exceeded(time.monotonic())
 
         return AudioState(level=self.level, peak=self.peak, exceeded=bool(exceeded))
+
+    def _configure_recording(self, camera_config: dict) -> None:
+        try:
+            pre_capture = float(camera_config.get('pre_capture') or 0)
+            framerate = max(1.0, float(camera_config.get('framerate') or 1))
+
+        except (TypeError, ValueError):
+            pre_capture, framerate = 0.0, 1.0
+
+        seconds = min(_MAX_PRE_ROLL_SECONDS, _PRE_ROLL_SECONDS + pre_capture / framerate)
+        self._ring = deque(self._ring, maxlen=math.ceil(seconds / BLOCK_SECONDS))
+        self._target_dir = str(camera_config.get('target_dir') or '')
+
+    def _recording_path(self) -> str:
+        directory = self._target_dir
+        if not os.path.isdir(directory):
+            directory = tempfile.gettempdir()
+
+        return os.path.join(directory, f'.audio-{self.camera_id}.pcm')
+
+    def _remove_stale_recording(self) -> None:
+        with contextlib.suppress(OSError):
+            os.remove(self._recording_path())
+
+    def event_started(self) -> None:
+        """A motion event started: keep the sound for the movie."""
+
+        self._cancel_close()
+        self._event_active = True
+        if not self.settings.record or self._recording is not None:
+            return
+
+        try:
+            self._recording = _Recording(self._recording_path())
+
+        except OSError as e:
+            logging.error(f'could not record the sound of camera {self.camera_id}: {e}')
+            return
+
+        # the sound from before the event
+        for pcm in self._ring:
+            self._recording.write(pcm)
+
+    def event_ended(self) -> None:
+        self._event_active = False
+        self._cancel_close()
+        if self._recording is not None:
+            # the movie may end after the event, or in several parts
+            self._close_handle = asyncio.get_running_loop().call_later(
+                _RECORDING_GRACE_SECONDS, self._close_recording
+            )
+
+    async def movie_ended(self, movie: str) -> bool:
+        """Puts the sound in the movie that motion has just closed."""
+
+        recording = self._recording
+        if recording is None:
+            return False
+
+        recording.flush()
+        try:
+            return await audiomux.mux(movie, recording.path, recording.size, self.settings)
+
+        finally:
+            if not self._event_active:
+                self._close_recording()
+
+    def has_recording(self) -> bool:
+        return self._recording is not None
+
+    def _cancel_close(self) -> None:
+        if self._close_handle is not None:
+            self._close_handle.cancel()
+            self._close_handle = None
+
+    def _close_recording(self) -> None:
+        self._cancel_close()
+        if self._recording is not None:
+            self._recording.close()
+            self._recording = None
 
     def _kill(self) -> None:
         process = self._process
@@ -336,6 +465,16 @@ class AudioCapture:
         self._last_data = now
         self._powers.append(power)
 
+        self._ring.append(pcm)
+        recording = self._recording
+        if recording is not None:
+            if recording.size >= _MAX_RECORDING_SECONDS * self.sample_rate * 2:
+                logging.warning(f'the sound of camera {self.camera_id} is too long to keep')
+                self._close_recording()
+
+            else:
+                recording.write(pcm)
+
         self._peaks.append((now, power_to_db(power)))
         while self._peaks and now - self._peaks[0][0] > 3:
             self._peaks.popleft()
@@ -372,6 +511,32 @@ def signature(camera_config: dict) -> tuple:
         settings.quality,
         tuple(audio.input_arguments(camera_config) or ()),
     )
+
+
+def on_event_start(camera_id: int) -> None:
+    capture = _captures.get(camera_id)
+    if capture:
+        capture.event_started()
+
+
+def on_event_end(camera_id: int) -> None:
+    capture = _captures.get(camera_id)
+    if capture:
+        capture.event_ended()
+
+
+def will_add_sound(camera_id: int) -> bool:
+    """Tells if the sound of the running event is kept for the next movie."""
+
+    capture = _captures.get(camera_id)
+
+    return bool(capture and capture.has_recording())
+
+
+async def on_movie_end(camera_id: int, movie: str) -> bool:
+    capture = _captures.get(camera_id)
+
+    return bool(capture and await capture.movie_ended(movie))
 
 
 def get_capture(camera_id: int) -> AudioCapture | None:

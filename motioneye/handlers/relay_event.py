@@ -17,10 +17,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
-from motioneye import config, mediafiles, motionctl, tasks, uploadservices, utils
+from motioneye import (
+    audiocapture,
+    config,
+    mediafiles,
+    motionctl,
+    tasks,
+    uploadservices,
+    utils,
+)
 from motioneye.handlers.base import BaseHandler
 
 __all__ = ('RelayEventHandler',)
@@ -79,6 +88,7 @@ class RelayEventHandler(BaseHandler):
             utils.validate_paths(filename, target_dir=target_dir)
 
         if event == 'start':
+            audiocapture.on_event_start(camera_id)
             # a sound event comes without motion detection as well
             sound_event = camera_config.get('@audio_enabled') and camera_config.get(
                 '@audio_trigger'
@@ -93,21 +103,18 @@ class RelayEventHandler(BaseHandler):
             motionctl.set_motion_detected(camera_id, True)
 
         elif event == 'stop':
+            audiocapture.on_event_end(camera_id)
             motionctl.set_motion_detected(camera_id, False)
 
         elif event == 'movie_end':
-            # generate preview (thumbnail)
-            tasks.add(
-                5,
-                mediafiles.make_movie_preview,
-                tag=f'make_movie_preview({filename})',
-                camera_config=camera_config,
-                rel_path=filename,
-            )
+            if audiocapture.will_add_sound(camera_id):
+                # the motion hook does not wait for the sound to be added
+                asyncio.ensure_future(
+                    self._movie_end_with_sound(camera_id, camera_config, filename)
+                )
 
-            # upload to external service
-            if camera_config['@upload_enabled'] and camera_config['@upload_movie']:
-                self._upload_media_file(filename, camera_id, camera_config)
+            else:
+                self._movie_end(camera_id, camera_config, filename)
 
         elif event == 'picture_save':
             # upload to external service
@@ -120,6 +127,31 @@ class RelayEventHandler(BaseHandler):
         self.finish_json()
 
         return None
+
+    async def _movie_end_with_sound(self, camera_id, camera_config, filename):
+        try:
+            await audiocapture.on_movie_end(
+                camera_id, os.path.join(camera_config['target_dir'], filename)
+            )
+
+        except Exception:
+            logging.exception(f'could not add the sound to movie {filename}')
+
+        self._movie_end(camera_id, camera_config, filename)
+
+    def _movie_end(self, camera_id, camera_config, filename):
+        # generate preview (thumbnail)
+        tasks.add(
+            5,
+            mediafiles.make_movie_preview,
+            tag=f'make_movie_preview({filename})',
+            camera_config=camera_config,
+            rel_path=filename,
+        )
+
+        # upload to external service
+        if camera_config['@upload_enabled'] and camera_config['@upload_movie']:
+            self._upload_media_file(filename, camera_id, camera_config)
 
     def _upload_media_file(self, filename, camera_id, camera_config):
         service_name = camera_config['@upload_service']
