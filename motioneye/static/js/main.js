@@ -4729,6 +4729,51 @@ function runMediaDialog(cameraId, mediaType) {
 
     /* camera frames */
 
+function updateCameraAudio(cameraId, cameraFrameDiv, clear) {
+    /* shows the sound level (dB) of a camera, the volume meter and whether the volume is above the threshold */
+    var config = cameraFrameDiv[0].config || {};
+    var dbSpan = cameraFrameDiv.find('span.camera-db');
+    var meterDiv = cameraFrameDiv.find('div.camera-audio-meter');
+
+    var level = parseFloat(getCookie('audio_level_' + cameraId));
+    var enabled = config['audio_enabled'] && config['proto'] != 'mjpeg' && !clear;
+
+    if (!enabled || isNaN(level)) {
+        dbSpan.text(enabled ? '-- dB' : '');
+        meterDiv.removeClass('visible');
+        cameraFrameDiv.removeClass('audio-detected');
+        return;
+    }
+
+    var exceeded = getCookie('audio_exceeded_' + cameraId) == 'true';
+
+    dbSpan.text(level.toFixed(0) + ' dB');
+    cameraFrameDiv.toggleClass('audio-detected', exceeded);
+
+    if (config['audio_show_level']) {
+        var toPercent = function (db) {
+            return Math.max(0, Math.min(100, (db + 80) * 100 / 80));
+        };
+
+        meterDiv.addClass('visible').toggleClass('exceeded', exceeded);
+        meterDiv.find('div.camera-audio-meter-bar')
+                .css('width', toPercent(level) + '%')
+                .toggleClass('warn', level > -20)
+                .toggleClass('loud', level > -6);
+
+        var threshold = meterDiv.find('div.camera-audio-meter-threshold');
+        if (config['audio_trigger'] && config['audio_threshold'] != null) {
+            threshold.css('left', toPercent(parseFloat(config['audio_threshold'])) + '%').show();
+        }
+        else {
+            threshold.hide();
+        }
+    }
+    else {
+        meterDiv.removeClass('visible');
+    }
+}
+
 function addCameraFrameUi(cameraConfig) {
     var cameraId = cameraConfig.id;
 
@@ -4738,6 +4783,7 @@ function addCameraFrameUi(cameraConfig) {
                     '<div class="camera-placeholder"><img class="no-camera" src="' + staticPath + 'img/no-camera.svg"></div>' +
                     '<img class="camera">' +
                     '<div class="camera-progress"><img class="camera-progress"></div>' +
+                    '<div class="camera-audio-meter"><div class="camera-audio-meter-bar"></div><div class="camera-audio-meter-threshold"></div></div>' +
                 '</div>' +
                 '<div class="button icon mouse-effect move-camera" title="' + i18n.gettext("drag to move around") + '"></div>' +
                 '<div class="camera-overlay">' +
@@ -4747,6 +4793,7 @@ function addCameraFrameUi(cameraConfig) {
                                 '<div class="camera-name"><span class="camera-name"></span></div>' +
                                 '<div class="camera-fps">' +
                                     '<span class="camera-fps" title="streaming/capture frame rate"></span>' +
+                                    '<span class="camera-db" title="' + i18n.gettext("sound level") + '"></span>' +
                                 '</div>' +
                             '</div>' +
                             '<div class="camera-top-buttons">' +
@@ -5108,6 +5155,7 @@ function addCameraFrameUi(cameraConfig) {
         cameraProgress.removeClass('visible');
         cameraFrameDiv.removeClass('motion-detected');
         cameraFpsSpan.html('');
+        updateCameraAudio(cameraId, cameraFrameDiv, true);
     };
     cameraImg[0].onload = function () {
         var wasError = this.error;
@@ -5138,8 +5186,15 @@ function addCameraFrameUi(cameraConfig) {
             updateLayout(); /* the image replaces the placeholder */
         }
 
-        /* there's no point in looking for a cookie update more often than once every second */
         var now = new Date().getTime();
+
+        /* the sound level changes fast, so it is read more often than the other cookies */
+        if (!this.lastAudioTime || now - this.lastAudioTime > 250) {
+            this.lastAudioTime = now;
+            updateCameraAudio(cameraId, cameraFrameDiv);
+        }
+
+        /* there's no point in looking for a cookie update more often than once every second */
         if ((!this.lastCookieTime || now - this.lastCookieTime > 1000) && (cameraFrameDiv[0].config['proto'] != 'mjpeg')) {
             if (getCookie('motion_detected_' + cameraId) == 'true') {
                 cameraFrameDiv.addClass('motion-detected');

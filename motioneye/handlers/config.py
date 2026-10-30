@@ -60,6 +60,7 @@ class ConfigHandler(BaseHandler):
             'audio_enabled',
             'audio_show_level',
             'audio_threshold',
+            'audio_trigger',
             'audio_streaming_format',
             'url',  # only for simple mjpeg cameras
         }

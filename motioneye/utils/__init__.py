@@ -77,6 +77,7 @@ class GetCurrentPictureResponse:
     motion_detected: bool = False
     capture_fps: Any = None
     monitor_info: Any = None
+    audio_state: Any = None
     picture: Any = None
     error: Any = None
 

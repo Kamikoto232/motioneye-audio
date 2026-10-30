@@ -718,6 +718,8 @@ def set_camera(camera_id: int, camera_config: dict) -> None:
             logging.error(f'could not write camera config file {config_file_path}: {e}')
             raise
 
+    _update_audio()
+
 
 # what motionEye's own on_* commands read from the camera config, by argument name
 SENDMAIL_KEYS = {
@@ -949,6 +951,15 @@ def rem_camera(camera_id: int) -> None:
     except Exception as e:
         logging.error(f'could not remove camera config file {camera_config_path}: {e}')
         raise
+
+    _update_audio()
+
+
+def _update_audio() -> None:
+    # the audio captures follow the camera configs
+    from motioneye import audiocapture
+
+    audiocapture.update()
 
 
 def main_ui_to_dict(ui: dict) -> dict:

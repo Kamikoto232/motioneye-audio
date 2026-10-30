@@ -25,6 +25,7 @@ from urllib.parse import urlencode
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest, HTTPResponse
 
 from motioneye import settings, utils
+from motioneye.audiocapture import AudioState
 from motioneye.utils.authstate import generate_hmac_signature, generate_nonce
 
 _DOUBLE_SLASH_REGEX = re.compile('//+')
@@ -359,6 +360,25 @@ async def test(local_config, data) -> utils.CommonExternalResponse:
     )  # it will never return result = True, what the point?
 
 
+def _parse_audio_cookies(cookies: dict, camera_id) -> AudioState | None:
+    level = cookies.get('audio_level_' + str(camera_id))
+    if level is None:  # an older remote server
+        return None
+
+    try:
+        level_db = float(level)
+
+    except ValueError:
+        level_db = None
+
+    if level_db is not None and not isfinite(level_db):
+        level_db = None
+
+    exceeded = cookies.get('audio_exceeded_' + str(camera_id)) == 'true'
+
+    return AudioState(level=level_db, peak=level_db, exceeded=exceeded)
+
+
 async def get_current_picture(
     local_config, width, height
 ) -> utils.GetCurrentPictureResponse:
@@ -405,11 +425,13 @@ async def get_current_picture(
         capture_fps = 0.0
 
     monitor_info = cookies.get('monitor_info_' + str(camera_id))
+    audio_state = _parse_audio_cookies(cookies, camera_id)
 
     return utils.GetCurrentPictureResponse(
         motion_detected=motion_detected,
         capture_fps=capture_fps,
         monitor_info=monitor_info,
+        audio_state=audio_state,
         picture=response.body,
     )
 

@@ -421,7 +421,15 @@ def make_app(debug: bool = False) -> Application:
 
 
 def run():
-    from motioneye import VERSION, cleanup, mjpgclient, motionctl, tasks, wsswitch
+    from motioneye import (
+        VERSION,
+        audiocapture,
+        cleanup,
+        mjpgclient,
+        motionctl,
+        tasks,
+        wsswitch,
+    )
     from motioneye.controls import smbctl
 
     configure_signals()
@@ -457,6 +465,7 @@ def run():
 
     wsswitch.start()
     tasks.start()
+    audiocapture.start()
     cleanup.start()
 
     if settings.MJPG_CLIENT_TIMEOUT:
@@ -489,6 +498,7 @@ def run():
     logging.info(_('servilo haltis'))
 
     stop_motion_checker()
+    audiocapture.stop()
     cleanup.stop()
     tasks.stop()
 

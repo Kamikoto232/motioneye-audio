@@ -29,6 +29,7 @@ from tornado import gen
 from tornado.web import HTTPError
 
 from motioneye import (
+    audiocapture,
     config,
     mediafiles,
     mjpgclient,
@@ -221,6 +222,7 @@ class PictureHandler(BaseHandler):
             self.set_cookie(
                 'monitor_info_' + camera_id_str, monitor.get_monitor_info(camera_id)
             )
+            self.set_audio_cookies(camera_id_str, audiocapture.get_state(camera_id))
 
             return self.try_finish(picture)
 
@@ -239,11 +241,23 @@ class PictureHandler(BaseHandler):
                 'monitor_info_' + camera_id_str,
                 quote(unquote(resp.monitor_info or ''), safe=''),
             )
+            self.set_audio_cookies(camera_id_str, resp.audio_state)
 
             return self.try_finish(resp.picture)
 
         else:  # assuming simple mjpeg camera
             raise HTTPError(400, 'unknown operation')
+
+    def set_audio_cookies(self, camera_id_str, state):
+        # the loudness (dB) of the camera sound and whether it is above the threshold
+        level = state.level if state else None
+        self.set_cookie(
+            'audio_level_' + camera_id_str, '' if level is None else f'{level:.1f}'
+        )
+        self.set_cookie(
+            'audio_exceeded_' + camera_id_str,
+            str(bool(state and state.exceeded)).lower(),
+        )
 
     @BaseHandler.auth()
     @BaseHandler.peer_allowed()

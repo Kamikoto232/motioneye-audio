@@ -912,6 +912,10 @@ div.camera-frame:HOVER {
     background-color: #414141;
 }
 
+div.camera-frame.audio-detected {
+    background-color: #6b5a14;
+}
+
 div.camera-frame.motion-detected {
     background-color: #712727;
 }
@@ -980,6 +984,11 @@ div.camera-overlay-bottom {
 div.camera-frame:HOVER div.camera-overlay-top,
 div.camera-frame:HOVER div.camera-overlay-bottom {
     background-color: rgba(30, 30, 30, 0.8);
+}
+
+div.camera-frame.audio-detected div.camera-overlay-top,
+div.camera-frame.audio-detected div.camera-overlay-bottom {
+    background-color: rgba(107, 90, 20, 0.8);
 }
 
 div.camera-frame.motion-detected div.camera-overlay-top,
@@ -1080,6 +1089,12 @@ div.camera-fps {
 span.camera-fps {
     padding-left: 0.2rem;
     padding-bottom: 0.2em;
+}
+
+span.camera-db {
+    padding-left: 0.6em;
+    padding-bottom: 0.2em;
+    white-space: nowrap;
 }
 
 div.camera-monitoring {
@@ -1304,6 +1319,47 @@ div.camera-action-button.preset9:BEFORE {
 div.camera-container {
     position: relative;
     padding: 0;
+}
+
+div.camera-audio-meter {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0.4em;
+    background-color: rgba(0, 0, 0, 0.55);
+    z-index: 1;
+    pointer-events: none;
+}
+
+div.camera-audio-meter.visible {
+    display: block;
+}
+
+div.camera-audio-meter-bar {
+    height: 100%;
+    width: 0;
+    background-color: #3fb950;
+    transition: width 0.15s linear;
+}
+
+div.camera-audio-meter-bar.warn {
+    background-color: #d4a72c;
+}
+
+div.camera-audio-meter-bar.loud,
+div.camera-audio-meter.exceeded div.camera-audio-meter-bar {
+    background-color: #f85149;
+}
+
+div.camera-audio-meter-threshold {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background-color: #fff;
 }
 
 img.camera {
